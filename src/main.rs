@@ -185,8 +185,6 @@ fn fiddler_saz_parse(fname: &str) -> Vec<FiddlerEntry> {
         });
     }
 
-    list.retain(|i| i.path.len() == 0);
-
     entries
 }
 
