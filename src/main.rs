@@ -1,7 +1,7 @@
 use std::fs;
 use std::io::BufReader;
 
-use select::predicate::Predicate;
+use regex::Regex;
 
 mod constants {
     pub const MAGIC_ZIP: &[u8; 4] = b"\x50\x4B\x03\x04";
@@ -28,17 +28,12 @@ struct ZippedFile {
 struct FiddlerEntry {
     index: u32,
     result: u32,
-    protocol: String,
-    host: String,
     url: String,
     body: u32,
-    caching: String,
-    contenttype: String,
-    process: String,
-    comments: String,
-    custom: String,
     file_request: String,
-    file_response: String
+    file_response: String,
+    file_request_contents: String,
+    file_response_contents: String
 }
 
 fn get_filetype(filename: &str) -> ZipValidity {
@@ -78,8 +73,8 @@ fn zip_contents(filename: &str) -> zip::result::ZipResult<Vec<ZippedFile>>
             let file_size = zipped_file.size();
 
             let mut writer: Vec<u8> = vec![];
-            std::io::copy(&mut zipped_file, &mut writer);
-            let file_contents = std::str::from_utf8(&writer).unwrap().to_string();
+            let _ = std::io::copy(&mut zipped_file, &mut writer);
+            let file_contents = unsafe {std::str::from_utf8_unchecked(&writer).to_string()};
 
             list.push(ZippedFile {
                 path: file_path,
@@ -97,66 +92,119 @@ fn get_file_from_list<'a>(list: &'a [ZippedFile], filename: &str) -> &'a ZippedF
     result
 }
 
-// fn get_file_from_list(list: &[ZippedFile], filename: &str) -> ZippedFile {
-//     let result = list.iter().find(|&f| f.path == filename).unwrap();
-//     result.clone()
-// }
+fn get_sessions_total(list: &[ZippedFile]) -> (u32, usize) {
+    let mut leading_zeroes: usize = 0;
+    let mut sessions_total: u32 = 0;
 
-fn remove_whitespace(s: &mut String) {
-    s.retain(|c| !c.is_whitespace());
+    for zipped_file in list {
+        let mut splitted = zipped_file.path.split('_');
+        let splitted2 = splitted.nth(0);
+        match splitted2 {
+            Some(inner) => {
+                let number = inner.split('/').nth(1);
+                match number {
+                    Some(inner2) => {
+                        leading_zeroes = inner2.len();
+                        let parsed = inner2.parse::<u32>().unwrap();
+                        if sessions_total < parsed {
+                            sessions_total = parsed;
+                        }
+                    },
+                    None => continue
+                }
+            },
+            None => continue
+        }
+    }
+
+    (sessions_total, leading_zeroes)
+}
+
+fn regex_get_url(contents: &str) -> &str {
+    let re = Regex::new(r"(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE) (.*) HTTP/1.1").unwrap();
+    let capture = re.captures(contents).unwrap();
+    let value = capture.get(2).unwrap().as_str();
+
+    value
+}
+
+fn regex_get_http_status(contents: &str) -> u32 {
+    let re = Regex::new(r"HTTP.*([0-9][0-9][0-9])").unwrap();
+    let capture = re.captures(contents).unwrap();
+    let value = capture.get(1).unwrap().as_str().parse::<u32>().unwrap();
+
+    value
+}
+
+fn regex_get_content_length(contents: &str) -> u32 {
+    let mut value: u32 = 0;
+
+    let re = Regex::new(r"Content-Length:\s(\d+)").unwrap();
+    let capture = re.captures(contents);
+
+    match capture {
+        Some(captured) => {
+            value = captured.get(1).unwrap().as_str().parse::<u32>().unwrap();
+        },
+        None => return value
+    }
+
+    value
+}
+
+fn fiddler_saz_parse(fname: &str) -> Vec<FiddlerEntry> {
+    let mut entries: Vec<FiddlerEntry> = vec![];
+
+    let mut list = zip_contents(&fname).unwrap();
+    let (total_sessions, leading_zeroes) = get_sessions_total(&list);
+
+    for n in 1..=total_sessions {
+        let request_file_name = format!("raw/{:0fill$}_c.txt", n, fill = leading_zeroes);
+        let response_file_name = format!("raw/{:0fill$}_s.txt", n, fill = leading_zeroes);
+
+        let request_file = get_file_from_list(&list, &*request_file_name);
+        let response_file = get_file_from_list(&list, &*response_file_name);
+
+        let url = regex_get_url(&*request_file.contents);
+        let httpstatus = regex_get_http_status(&*response_file.contents);
+        let contentlength = regex_get_content_length(&*response_file.contents);
+
+        // NOTE: if lossy is wanted
+        // let request_contents_lossy = String::from_utf8_lossy(request_file.contents.as_bytes());
+        // let response_contents_lossy = String::from_utf8_lossy(response_file.contents.as_bytes());
+
+        entries.push(FiddlerEntry {
+            index: n,
+            result: httpstatus,
+            url: url.to_string(),
+            body: contentlength,
+            file_request: request_file_name.clone(),
+            file_response: response_file_name.clone(),
+            file_request_contents: request_file.contents.clone(),
+            file_response_contents: response_file.contents.clone()
+        });
+    }
+
+    list.retain(|i| i.path.len() == 0);
+
+    entries
+}
+
+use std::io;
+use std::io::prelude::*;
+
+fn pause() {
+    let mut stdin = io::stdin();
+    let mut stdout = io::stdout();
+
+    // We want the cursor to stay at the end of the line, so we print without a newline and flush manually.
+    write!(stdout, "Press any key to continue...").unwrap();
+    stdout.flush().unwrap();
+
+    // Read a single byte and discard
+    let _ = stdin.read(&mut [0u8]).unwrap();
 }
 
 fn main() {
-    let list = zip_contents("fiddler.saz").unwrap();
-    let result = get_file_from_list(&list, "_index.htm");
-
-    let doc = select::document::Document::from(result.contents.as_str());
-    let table = doc.find(select::predicate::Name("tr"));
-
-    for (index, tr) in table.into_iter().enumerate() {
-        if index == 0 {
-            continue
-        }
-
-        let _frequest = tr.children().nth(0).unwrap()
-            .children().nth(0).unwrap()
-            .attr("href").unwrap();
-
-        let _fresponse = tr.children().nth(0).unwrap()
-            .children().nth(2).unwrap()
-            .attr("href").unwrap();
-
-        let _idx = tr.children().nth(1).unwrap().text();
-        let _result = tr.children().nth(2).unwrap().text();
-        let _protocol = tr.children().nth(3).unwrap().text();
-        let _host = tr.children().nth(4).unwrap().text();
-        let _url = tr.children().nth(5).unwrap().text();
-        let mut _body = tr.children().nth(6).unwrap().text();
-        let _caching = tr.children().nth(7).unwrap().text();
-        let _contenttype = tr.children().nth(8).unwrap().text();
-        let _process = tr.children().nth(9).unwrap().text();
-        let _comments = tr.children().nth(10).unwrap().text();
-        let _custom = tr.children().nth(11).unwrap().text();
-
-        // sanitize whatever needs sanitization
-        remove_whitespace(&mut _body);
-
-        let omegalul = FiddlerEntry {
-            index: _idx.parse::<u32>().unwrap(),
-            result: _result.parse::<u32>().unwrap(),
-            protocol: _protocol,
-            host: _host,
-            url: _url,
-            body: _body.parse::<u32>().unwrap(),
-            caching: _caching,
-            contenttype: _contenttype,
-            process: _process,
-            comments: _comments,
-            custom: _custom,
-            file_request: _frequest.to_string(),
-            file_response: _fresponse.to_string()
-        };
-
-        dbg!(omegalul);
-    }
+    let parsed = fiddler_saz_parse("fiddler.saz");
 }
