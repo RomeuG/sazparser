@@ -3,6 +3,8 @@ use std::io::BufReader;
 
 use regex::Regex;
 
+use std::rc::Rc;
+
 mod constants {
     pub const MAGIC_ZIP: &[u8; 4] = b"\x50\x4B\x03\x04";
     pub const MAGIC_ZIP_EMPTY: &[u8; 4] = b"\x50\x4B\x03\x04";
@@ -21,7 +23,7 @@ enum ZipValidity {
 struct ZippedFile {
     path: String,
     size: u64,
-    contents: String
+    contents: Rc<String>
 }
 
 #[derive(Debug)]
@@ -32,8 +34,8 @@ struct FiddlerEntry {
     body: u32,
     file_request: String,
     file_response: String,
-    file_request_contents: String,
-    file_response_contents: String
+    file_request_contents: Rc<String>,
+    file_response_contents: Rc<String>
 }
 
 fn get_filetype(filename: &str) -> ZipValidity {
@@ -79,7 +81,7 @@ fn zip_contents(filename: &str) -> zip::result::ZipResult<Vec<ZippedFile>>
             list.push(ZippedFile {
                 path: file_path,
                 size: file_size,
-                contents: file_contents
+                contents: Rc::new(file_contents)
             });
         }
     }
