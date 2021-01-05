@@ -29,6 +29,16 @@ pub mod fiddlerparser {
 	contents: Rc<String>
     }
 
+    impl ZippedFile {
+        fn new(path: &String, size: u64, contents: Rc<String>) -> ZippedFile {
+            ZippedFile {
+                path: path.to_string(),
+                size: size,
+                contents: contents.clone()
+            }
+        }
+    }
+
     #[derive(Debug)]
     pub struct FiddlerEntry {
 	index: u32,
@@ -105,11 +115,14 @@ pub mod fiddlerparser {
 		let _ = std::io::copy(&mut zipped_file, &mut writer);
 		let file_contents = unsafe {std::str::from_utf8_unchecked(&writer).to_string()};
 
-		list.push(ZippedFile {
-		    path: file_path,
-		    size: file_size,
-		    contents: Rc::new(file_contents)
-		});
+                let zippedfile = ZippedFile::new(&file_path, file_size, Rc::new(file_contents));
+                list.push(zippedfile);
+
+		// list.push(ZippedFile {
+		//     path: file_path,
+		//     size: file_size,
+		//     contents: Rc::new(file_contents)
+		// });
 	    }
 	}
 
