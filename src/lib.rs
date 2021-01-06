@@ -15,11 +15,12 @@ pub mod fiddlerparser {
     }
 
     #[derive(Debug)]
-    enum ZipValidity {
+    pub enum ZipValidity {
 	Valid,
 	Empty,
 	Spanned,
-	Invalid
+	Invalid,
+        Error
     }
 
     #[derive(Debug, Clone)]
@@ -90,14 +91,15 @@ pub mod fiddlerparser {
 	}
     }
 
-    fn zip_contents(filename: &str) -> zip::result::ZipResult<Vec<ZippedFile>>
+    //fn zip_contents(filename: &str) -> zip::result::ZipResult<Vec<ZippedFile>>
+    fn zip_contents(filename: &str) -> Result<Vec<ZippedFile>, ZipValidity>
     {
 	let mut list: Vec<ZippedFile> = vec![];
 
 	let file = fs::File::open(filename).unwrap();
 	let reader = BufReader::new(file);
 
-	let mut archive = zip::ZipArchive::new(reader)?;
+	let mut archive = zip::ZipArchive::new(reader).unwrap();
 
 	for i in 0..archive.len() {
 	    let mut zipped_file = archive.by_index(i).unwrap();
@@ -117,12 +119,6 @@ pub mod fiddlerparser {
 
                 let zippedfile = ZippedFile::new(&file_path, file_size, Rc::new(file_contents));
                 list.push(zippedfile);
-
-		// list.push(ZippedFile {
-		//     path: file_path,
-		//     size: file_size,
-		//     contents: Rc::new(file_contents)
-		// });
 	    }
 	}
 
@@ -194,10 +190,11 @@ pub mod fiddlerparser {
 	value
     }
 
-    pub fn fiddler_saz_parse(fname: &str) -> Vec<FiddlerEntry> {
+    //pub fn fiddler_saz_parse(fname: &str) -> Vec<FiddlerEntry> {
+    pub fn fiddler_saz_parse(fname: &str) -> Result<Vec<FiddlerEntry>, ZipValidity> {
 	let mut entries: Vec<FiddlerEntry> = vec![];
 
-	let mut list = zip_contents(&fname).unwrap();
+	let mut list = zip_contents(&fname)?;
 	let (total_sessions, leading_zeroes) = get_sessions_total(&list);
 
 	for n in 1..=total_sessions {
@@ -220,6 +217,6 @@ pub mod fiddlerparser {
             entries.push(entry);
 	}
 
-	entries
+	Ok(entries)
     }
 }
