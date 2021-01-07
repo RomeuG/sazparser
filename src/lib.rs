@@ -7,12 +7,20 @@ pub mod fiddlerparser {
 
     use std::rc::Rc;
 
-
     mod constants {
 	pub const MAGIC_ZIP: &[u8; 4] = b"\x50\x4B\x03\x04";
 	pub const MAGIC_ZIP_EMPTY: &[u8; 4] = b"\x50\x4B\x03\x04";
 	pub const MAGIC_ZIP_SPANNED: &[u8; 4] = b"\x50\x4B\x03\x04";
     }
+
+    #[derive(Debug)]
+    struct FiddlerError;
+    impl std::fmt::Display for FiddlerError {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+            write!(f, "FiddlerError");
+        }
+    }
+    impl std::error::Error for FiddlerError {}
 
     #[derive(Debug)]
     pub enum ZipValidity {
@@ -76,24 +84,26 @@ pub mod fiddlerparser {
         }
     }
 
-    fn get_filetype(filename: &str) -> ZipValidity {
+    fn check_file_validity(filename: &str) -> Result<(), ZipValidity> {
 	let data = fs::read(filename).unwrap();
 
 	let slice = &data[..4];
 	if slice == constants::MAGIC_ZIP {
-	    return ZipValidity::Valid;
+	    return Ok(());
 	} else if slice == constants::MAGIC_ZIP_EMPTY {
-	    return ZipValidity::Empty;
+	    return Err(ZipValidity::Empty);
 	} else if slice == constants::MAGIC_ZIP_SPANNED {
-	    return ZipValidity::Spanned;
+	    return Err(ZipValidity::Spanned);
 	} else {
-	    return ZipValidity::Invalid;
+	    return Err(ZipValidity::Invalid);
 	}
     }
 
     //fn zip_contents(filename: &str) -> zip::result::ZipResult<Vec<ZippedFile>>
     fn zip_contents(filename: &str) -> Result<Vec<ZippedFile>, ZipValidity>
     {
+        check_file_validity(filename)?;
+
 	let mut list: Vec<ZippedFile> = vec![];
 
 	let file = fs::File::open(filename).unwrap();
@@ -194,7 +204,7 @@ pub mod fiddlerparser {
     pub fn fiddler_saz_parse(fname: &str) -> Result<Vec<FiddlerEntry>, ZipValidity> {
 	let mut entries: Vec<FiddlerEntry> = vec![];
 
-	let mut list = zip_contents(&fname)?;
+	let list = zip_contents(&fname)?;
 	let (total_sessions, leading_zeroes) = get_sessions_total(&list);
 
 	for n in 1..=total_sessions {
