@@ -7,28 +7,42 @@ pub mod fiddlerparser {
 
     use std::rc::Rc;
 
+    use std::fmt;
+    use std::error;
+
     mod constants {
 	pub const MAGIC_ZIP: &[u8; 4] = b"\x50\x4B\x03\x04";
 	pub const MAGIC_ZIP_EMPTY: &[u8; 4] = b"\x50\x4B\x03\x04";
 	pub const MAGIC_ZIP_SPANNED: &[u8; 4] = b"\x50\x4B\x03\x04";
     }
 
-    #[derive(Debug)]
-    struct FiddlerError;
-    impl std::fmt::Display for FiddlerError {
-        fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-            write!(f, "FiddlerError");
-        }
-    }
-    impl std::error::Error for FiddlerError {}
+    type Result<T> = std::result::Result<T, ZipError>;
 
     #[derive(Debug)]
-    pub enum ZipValidity {
-	Valid,
-	Empty,
-	Spanned,
-	Invalid,
-        Error
+    pub enum ZipError {
+        Empty,
+        Spanned,
+        Invalid
+    }
+
+    impl fmt::Display for ZipError {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match *self {
+                ZipError::Empty => write!(f, "Zip file is empty."),
+                ZipError::Spanned => write!(f, "Zip file is spanned."),
+                ZipError::Invalid => write!(f, "Zip file is invalid."),
+            }
+        }
+    }
+
+    impl error::Error for ZipError {
+        fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+            match *self {
+                ZipError::Empty => None,
+                ZipError::Spanned => None,
+                ZipError::Invalid => None,
+            }
+        }
     }
 
     #[derive(Debug, Clone)]
@@ -84,23 +98,23 @@ pub mod fiddlerparser {
         }
     }
 
-    fn check_file_validity(filename: &str) -> Result<(), ZipValidity> {
+    fn check_file_validity(filename: &str) -> Result<()> {
 	let data = fs::read(filename).unwrap();
 
 	let slice = &data[..4];
 	if slice == constants::MAGIC_ZIP {
 	    return Ok(());
 	} else if slice == constants::MAGIC_ZIP_EMPTY {
-	    return Err(ZipValidity::Empty);
+	    return Err(ZipError::Empty);
 	} else if slice == constants::MAGIC_ZIP_SPANNED {
-	    return Err(ZipValidity::Spanned);
+	    return Err(ZipError::Spanned);
 	} else {
-	    return Err(ZipValidity::Invalid);
+	    return Err(ZipError::Invalid);
 	}
     }
 
     //fn zip_contents(filename: &str) -> zip::result::ZipResult<Vec<ZippedFile>>
-    fn zip_contents(filename: &str) -> Result<Vec<ZippedFile>, ZipValidity>
+    fn zip_contents(filename: &str) -> Result<Vec<ZippedFile>>
     {
         check_file_validity(filename)?;
 
@@ -201,7 +215,7 @@ pub mod fiddlerparser {
     }
 
     //pub fn fiddler_saz_parse(fname: &str) -> Vec<FiddlerEntry> {
-    pub fn fiddler_saz_parse(fname: &str) -> Result<Vec<FiddlerEntry>, ZipValidity> {
+    pub fn fiddler_saz_parse(fname: &str) -> Result<Vec<FiddlerEntry>> {
 	let mut entries: Vec<FiddlerEntry> = vec![];
 
 	let list = zip_contents(&fname)?;
