@@ -3,6 +3,10 @@ name = "sazparser"
 version = "0.1.0"
 authors = ["Romeu Vieira <romeu.bizz@gmail.com>"]
 description = "parser for saz files"
+repository = "///"
+keywords = ["fiddler", "parser", "zip"]
+categories = ["parser-implementations"]
+license = "MIT"
 readme = "README.md"
 edition = "2018"
 
