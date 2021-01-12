@@ -17,10 +17,15 @@ mod constants {
 type Result<T> = std::result::Result<T, SazError>;
 
 #[derive(Debug)]
+/// Library Error
 pub enum SazError {
+    /// SAZ/ZIP file is empty
     Empty,
+    /// SAZ/ZIP file is spanned
     Spanned,
+    /// SAZ/ZIP file is invalid
     Invalid,
+    /// Failure in reading file
     Error
 }
 
@@ -232,6 +237,7 @@ fn regex_get_content_length(contents: &str) -> u32 {
     value
 }
 
+///
 /// Parses given file.
 /// Returns Result<Vec<SazSession>>
 ///
@@ -239,9 +245,9 @@ fn regex_get_content_length(contents: &str) -> u32 {
 ///
 /// * `fname` - File name that represents the SAZ file
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if file does not exist.
+/// Errors out if not possible to read file.
 ///
 /// # Example
 ///
