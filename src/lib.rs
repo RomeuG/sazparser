@@ -5,8 +5,8 @@ use regex::Regex;
 
 use std::rc::Rc;
 
-use std::fmt;
 use std::error;
+use std::fmt;
 
 mod constants {
     pub const MAGIC_SAZ: &[u8; 4] = b"\x50\x4B\x03\x04";
@@ -26,7 +26,7 @@ pub enum SazError {
     /// SAZ/ZIP file is invalid
     Invalid,
     /// Failure in reading file
-    Error
+    Error,
 }
 
 impl fmt::Display for SazError {
@@ -55,7 +55,7 @@ impl error::Error for SazError {
 struct SazFile {
     path: String,
     size: u64,
-    contents: Rc<String>
+    contents: Rc<String>,
 }
 
 impl SazFile {
@@ -63,7 +63,7 @@ impl SazFile {
         SazFile {
             path: path.to_string(),
             size: size,
-            contents: contents.clone()
+            contents: contents.clone(),
         }
     }
 }
@@ -86,7 +86,7 @@ pub struct SazSession {
     /// Contents of Request file
     pub file_request_contents: Rc<String>,
     /// Contents of Response file
-    pub file_response_contents: Rc<String>
+    pub file_response_contents: Rc<String>,
 }
 
 impl SazSession {
@@ -98,17 +98,17 @@ impl SazSession {
         frequest: &String,
         fresponse: &String,
         frequest_contents: &Rc<String>,
-        fresponse_contents: &Rc<String>
+        fresponse_contents: &Rc<String>,
     ) -> SazSession {
         SazSession {
             index: idx,
-	    result: httpres,
-	    url: httpurl.to_string(),
-	    body: httpbody,
-	    file_request: frequest.clone(),
-	    file_response: fresponse.clone(),
-	    file_request_contents: frequest_contents.clone(),
-	    file_response_contents: fresponse_contents.clone()
+            result: httpres,
+            url: httpurl.to_string(),
+            body: httpbody,
+            file_request: frequest.clone(),
+            file_response: fresponse.clone(),
+            file_request_contents: frequest_contents.clone(),
+            file_response_contents: fresponse_contents.clone(),
         }
     }
 }
@@ -119,21 +119,20 @@ fn check_file_validity(filename: &str) -> Result<()> {
     if let Ok(d) = data {
         let slice = &d[..4];
         if slice == constants::MAGIC_SAZ {
-	    return Ok(());
+            return Ok(());
         } else if slice == constants::MAGIC_SAZ_EMPTY {
-	    return Err(SazError::Empty);
+            return Err(SazError::Empty);
         } else if slice == constants::MAGIC_SAZ_SPANNED {
-	    return Err(SazError::Spanned);
+            return Err(SazError::Spanned);
         } else {
-	    return Err(SazError::Invalid);
+            return Err(SazError::Invalid);
         }
     } else {
         return Err(SazError::Error);
     }
 }
 
-fn zip_contents(filename: &str) -> Result<Vec<SazFile>>
-{
+fn zip_contents(filename: &str) -> Result<Vec<SazFile>> {
     check_file_validity(filename)?;
 
     let mut raw_folder: bool = false;
@@ -145,24 +144,24 @@ fn zip_contents(filename: &str) -> Result<Vec<SazFile>>
     let mut archive = zip::ZipArchive::new(reader).unwrap();
 
     for i in 0..archive.len() {
-	let mut zipped_file = archive.by_index(i).unwrap();
+        let mut zipped_file = archive.by_index(i).unwrap();
 
-	let outpath = match zipped_file.enclosed_name() {
-	    Some(path) => path,
-	    None => continue,
-	};
+        let outpath = match zipped_file.enclosed_name() {
+            Some(path) => path,
+            None => continue,
+        };
 
-	if !zipped_file.name().ends_with('/') {
-	    let file_path = outpath.to_str().unwrap().to_string();
-	    let file_size = zipped_file.size();
+        if !zipped_file.name().ends_with('/') {
+            let file_path = outpath.to_str().unwrap().to_string();
+            let file_size = zipped_file.size();
 
-	    let mut writer: Vec<u8> = vec![];
-	    let _ = std::io::copy(&mut zipped_file, &mut writer);
-	    let file_contents = unsafe {std::str::from_utf8_unchecked(&writer).to_string()};
+            let mut writer: Vec<u8> = vec![];
+            let _ = std::io::copy(&mut zipped_file, &mut writer);
+            let file_contents = unsafe { std::str::from_utf8_unchecked(&writer).to_string() };
 
             let zippedfile = SazFile::new(&file_path, file_size, Rc::new(file_contents));
             list.push(zippedfile);
-	} else {
+        } else {
             if zipped_file.name() == "raw/" {
                 raw_folder = true;
             }
@@ -186,24 +185,24 @@ fn get_sessions_total(list: &[SazFile]) -> (u32, usize) {
     let mut sessions_total: u32 = 0;
 
     for zipped_file in list {
-	let mut splitted = zipped_file.path.split('_');
-	let splitted2 = splitted.nth(0);
-	match splitted2 {
-	    Some(inner) => {
-		let number = inner.split('/').nth(1);
-		match number {
-		    Some(inner2) => {
-			leading_zeroes = inner2.len();
-			let parsed = inner2.parse::<u32>().unwrap();
-			if sessions_total < parsed {
-			    sessions_total = parsed;
-			}
-		    },
-		    None => continue
-		}
-	    },
-	    None => continue
-	}
+        let mut splitted = zipped_file.path.split('_');
+        let splitted2 = splitted.nth(0);
+        match splitted2 {
+            Some(inner) => {
+                let number = inner.split('/').nth(1);
+                match number {
+                    Some(inner2) => {
+                        leading_zeroes = inner2.len();
+                        let parsed = inner2.parse::<u32>().unwrap();
+                        if sessions_total < parsed {
+                            sessions_total = parsed;
+                        }
+                    }
+                    None => continue,
+                }
+            }
+            None => continue,
+        }
     }
 
     (sessions_total, leading_zeroes)
@@ -232,10 +231,10 @@ fn regex_get_content_length(contents: &str) -> u32 {
     let capture = re.captures(contents);
 
     match capture {
-	Some(captured) => {
-	    value = captured.get(1).unwrap().as_str().parse::<u32>().unwrap();
-	},
-	None => return value
+        Some(captured) => {
+            value = captured.get(1).unwrap().as_str().parse::<u32>().unwrap();
+        }
+        None => return value,
     }
 
     value
@@ -285,20 +284,25 @@ pub fn parse(fname: &str) -> Result<Vec<SazSession>> {
     let (total_sessions, leading_zeroes) = get_sessions_total(&list);
 
     for n in 1..=total_sessions {
-	let request_file_name = format!("raw/{:0fill$}_c.txt", n, fill = leading_zeroes);
-	let response_file_name = format!("raw/{:0fill$}_s.txt", n, fill = leading_zeroes);
+        let request_file_name = format!("raw/{:0fill$}_c.txt", n, fill = leading_zeroes);
+        let response_file_name = format!("raw/{:0fill$}_s.txt", n, fill = leading_zeroes);
 
-	let request_file = get_file_from_list(&list, &*request_file_name);
-	let response_file = get_file_from_list(&list, &*response_file_name);
+        let request_file = get_file_from_list(&list, &*request_file_name);
+        let response_file = get_file_from_list(&list, &*response_file_name);
 
-	let url = regex_get_url(&*request_file.contents);
-	let httpstatus = regex_get_http_status(&*response_file.contents);
-	let contentlength = regex_get_content_length(&*response_file.contents);
+        let url = regex_get_url(&*request_file.contents);
+        let httpstatus = regex_get_http_status(&*response_file.contents);
+        let contentlength = regex_get_content_length(&*response_file.contents);
 
         let entry = SazSession::new(
-            n, httpstatus, url, contentlength,
-            &request_file_name, &response_file_name,
-            &request_file.contents, &response_file.contents
+            n,
+            httpstatus,
+            url,
+            contentlength,
+            &request_file_name,
+            &response_file_name,
+            &request_file.contents,
+            &response_file.contents,
         );
 
         entries.push(entry);
