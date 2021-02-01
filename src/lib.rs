@@ -68,7 +68,7 @@ impl SazFile {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 /// This struct represent a single SAZ session
 pub struct SazSession {
     /// Identifier

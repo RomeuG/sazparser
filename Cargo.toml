@@ -10,6 +10,11 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 edition = "2018"
 
+include = [
+    "src/*.rs",
+    "Cargo.toml"
+]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 zip = "0.5"
